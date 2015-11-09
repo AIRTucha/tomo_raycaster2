@@ -5,13 +5,24 @@
  * @class Core
  * @this {Core}
  * @author sogimu@nxt.ru Aleksandr Lizin aka sogimu
- *
  */
 
 var Core = function(conf) {
-    this.refl = 1;
-    this.sos = 1;
-    this.sat = 1;
+  
+    this.zFactor = conf.zFactor != undefined ? conf.zFactor : 1;
+    this.l = conf.l;
+    this.s = conf.s;
+  
+    this.hMin = conf.hMin;
+    this.hMax = conf.hMax;
+  
+    this.minRefl = conf.minRefl;
+    this.minSos = conf.minSos;
+    this.minAtten = conf.minAtten;
+  
+    this.maxRefl = conf.maxRefl;
+    this.maxSos = conf.maxSos;
+    this.maxAtten = conf.maxAtten;
     
     this._steps                      = 20;
     this._slices_gap                 = [0,    '*'];
@@ -20,20 +31,20 @@ var Core = function(conf) {
     this._slicemaps_images           = [];
     this._slicemaps_paths            = [];
     this._slicemaps_textures         = [];
-    this._opacity_factor             = 20.0;
-    this._color_factor               = 3.0;
-    this._absorption_mode_index      = 1.0;
-    this._render_size                = conf.renderer_size != undefined? ['*', '*'] :conf.render_size;
-    this._canvas_size                = [512, 512];
+    this._opacity_factor             = conf.opacity_factor;
+    this._color_factor               = conf.color_factor;
+    this._shader_name                = conf.renderer_size != undefined ? "secondPass" : conf.shader_name;
+    this._render_size                = conf.renderer_size != undefined ? ['*', '*'] : conf.render_size;
+    this._canvas_size                = conf.renderer_canvas_size;
     this._render_clear_color         = "#000";
     this._transfer_function_as_image = new Image();
     this._volume_sizes               = [1024.0, 1024.0, 1024.0];
-    this._geometry_dimensions        = {"xmin": 0.0, "xmax": 1.0, "ymin": 0.0, "ymax": 1.0, "zmin": 0.0, "zmax": 1.0};
+    this._geometry_dimensions        = {"xmin": 0.0, "xmax": 1.0, "ymin": 0.0, "ymax": 1.0, "zmin": 0.0, "zmax": 0.99};
     this._threshold_otsu_index       = 0;
     this._threshold_isodata_index    = 0;
     this._threshold_yen_index        = 0;
     this._threshold_li_index         = 0;
-
+  
     this._transfer_function_colors   = [
         {"pos": 0.25, "color": "#892c2c"},
         {"pos": 0.5, "color": "#00ff00"},
@@ -42,7 +53,7 @@ var Core = function(conf) {
 
     this._dom_container_id           = conf.domContainerId != undefined ? conf.domContainerId : "container";
     this._dom_container              = {};
-    this._render                   = {};
+    this._render                     = {};
     this._camera                     = {};
     this._camera_settings            = {
         "rotation": {
@@ -88,8 +99,12 @@ var Core = function(conf) {
     this._onWindowResizeFuncIndex_canvasSize = -1;
     this._onWindowResizeFuncIndex_renderSize = -1;
 
-
     this._callback = conf.callback;
+  
+    try{
+      if(this._canvas_size[0] > this._canvas_size[1])
+        this._camera_settings.position.z = 1; 
+    } catch(e){}
 };
 
 Core.prototype.init = function() {
@@ -112,7 +127,7 @@ Core.prototype.init = function() {
     this._camera.rotation.z = this._camera_settings["rotation"]["z"];
 
     this._controls = new THREE.OrbitControls( this._camera, this._render.domElement );
-    this._controls.center.set( 0.0, 0.0, 0.0 );
+    this._controls.center.set( 0.0, 0.0, -0.5 );
 
     this._rtTexture = new THREE.WebGLRenderTarget( this.getRenderSizeInPixels()[0], this.getRenderSizeInPixels()[1], { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat} );
 
@@ -129,28 +144,40 @@ Core.prototype.init = function() {
     } );
     
     this._materialSecondPass = new THREE.ShaderMaterial( {
-        vertexShader: this._shaders.secondPass.vertexShader,
-        fragmentShader: ejs.render( this._shaders.secondPass.fragmentShader, {"maxTexturesNumber": me.getMaxTexturesNumber()}),
+        vertexShader: this._shaders[this._shader_name].vertexShader,
+        fragmentShader: ejs.render( this._shaders[this._shader_name].fragmentShader, {
+          "maxTexturesNumber": me.getMaxTexturesNumber()}),
         attributes: {
             vertColor:                       {type: 'c', value: [] }
         },
         uniforms: {
             uBackCoord:                      { type: "t",  value: this._rtTexture }, 
             uSliceMaps:                      { type: "tv", value: this._slicemaps_textures }, 
-            uTransferFunction:               { type: "t",  value: this._transfer_function },
 
             uSteps:                          { type: "f", value: this._steps },
             uNumberOfSlices:                 { type: "f", value: this.getSlicesRange()[1] },
             uSlicesOverX:                    { type: "f", value: this._slicemap_row_col[0] },
             uSlicesOverY:                    { type: "f", value: this._slicemap_row_col[1] },
             uOpacityVal:                     { type: "f", value: this._opacity_factor },
-            uColorVal:                       { type: "f", value: this._color_factor },
-            uAbsorptionModeIndex:            { type: "f", value: this._absorption_mode_index },
-            uMinGrayVal:                     { type: "f", value: this._gray_value[0] },
-            uMaxGrayVal:                     { type: "f", value: this._gray_value[1] },
-            refl:                            { type: "f", value: this.getRefl() },
-            sat:                           { type: "f", value: this.getSat() },
-            sos:                             { type: "f", value: this.getSos() },
+            darkness:                        { type: "f", value: this._color_factor },            
+            
+            l:                               { type: "f", value: this.l },
+            s:                               { type: "f", value: this.s },
+            hMin:                            { type: "f", value: this.hMin },
+            hMax:                            { type: "f", value: this.hMax },
+          
+            minSos:                          { type: "f", value: this.minSos },
+            maxSos:                          { type: "f", value: this.maxSos },
+            minAtten:                        { type: "f", value: this.minAtten },
+            maxAtten:                        { type: "f", value: this.maxAtten },
+            minRefl:                         { type: "f", value: this.minRefl },
+            maxRefl:                         { type: "f", value: this.maxRefl },  
+          
+           uTransferFunction:               { type: "t",  value: this._transfer_function },
+           uColorVal:                       { type: "f", value: this._color_factor },
+           uAbsorptionModeIndex:            { type: "f", value: this._absorption_mode_index },
+           uMinGrayVal:                     { type: "f", value: this._gray_value[0] },
+           uMaxGrayVal:                     { type: "f", value: this._gray_value[1] }
         },
         side: THREE.BackSide,
         transparent: true
@@ -169,17 +196,14 @@ Core.prototype.init = function() {
 
     window.addEventListener( 'resize', function() {
         me.onResizeWindow.call();
-
     }, false );
 
     this._controls.addEventListener("change", function() {
         me.onCameraChange.call();
-
     });
 
     this._controls.addEventListener("start", function() {
         me.onCameraChangeStart.call();
-
     });
 
     this._controls.addEventListener("end", function() {
@@ -199,12 +223,14 @@ Core.prototype.init = function() {
     this._render.setSize(this.getRenderSizeInPixels()[0], this.getRenderSizeInPixels()[1]); 
     this.setRenderCanvasSize(this.getCanvasSize()[0], this.getCanvasSize()[1]);
     
-    this._callback();
+  
+    try{
+     this._callback();   
+    } catch(e){}       
 };
 
 Core.prototype._secondPassSetUniformValue = function(key, value) {
     this._materialSecondPass.uniforms[key].value = value;
-
 };
 
 Core.prototype._setSlicemapsTextures = function(images) {
@@ -237,37 +263,58 @@ Core.prototype.setTransferFunctionByImage = function(image) {
 
     this._secondPassSetUniformValue("uTransferFunction", transferTexture);
     this.onChangeTransferFunction.call(image);
-
 };
 
 
-Core.prototype.setRefl = function(refl) {
-    this.refl=refl;
-    this._secondPassSetUniformValue("refl", this.refl);
+Core.prototype.setL = function(v) {
+    this.l = v;
+    this._secondPassSetUniformValue("l", this.l);
 }
 
-Core.prototype.setSos = function(sos) {
-    this.sos=sos;
-    this._secondPassSetUniformValue("sos", this.sos);
+Core.prototype.setS = function(v) {
+    this.s = v;
+    this._secondPassSetUniformValue("s", this.s);
 }
 
-Core.prototype.setSat = function(sat) {
-    this.sat=sat;
-    this._secondPassSetUniformValue("sat", this.sat);
+Core.prototype.setHMin = function(v) {
+    this.hMin = v;
+    this._secondPassSetUniformValue("hMin", this.hMin);
 }
 
-Core.prototype.getRefl = function() {
-    return this.refl;
+Core.prototype.setHMax = function(v) {
+    this.hMax = v;
+    this._secondPassSetUniformValue("hMax", this.hMax);
 }
 
-Core.prototype.getSos = function() {
-    return this.sos;
+Core.prototype.setMaxRefl = function(v) {
+    this.maxRefl = v;
+    this._secondPassSetUniformValue("maxRefl", this.maxRefl);
 }
 
-Core.prototype.getSat = function() {
-    return this.sat;
+Core.prototype.setMaxSos = function(v) {
+    this.maxSos = v;
+    this._secondPassSetUniformValue("maxSos", this.maxSos);
 }
 
+Core.prototype.setMinAtten = function(v) {
+    this.minAtten = v;
+    this._secondPassSetUniformValue("minAtten", this.minAtten);
+}
+
+Core.prototype.setMinRefl = function(v) {
+    this.minRefl = v;
+    this._secondPassSetUniformValue("minRefl", this.minRefl);
+}
+
+Core.prototype.setMinSos = function(v) {
+    this.minSos = v;
+    this._secondPassSetUniformValue("minSos", this.minSos);
+}
+
+Core.prototype.setMaxAtten = function(v) {
+    this.maxAtten = v;
+    this._secondPassSetUniformValue("maxAtten", this.maxAtten);
+}
 
 Core.prototype.setTransferFunctionByColors = function(colors) {
     console.log("Core: setTransferFunctionByColors()");
@@ -296,7 +343,6 @@ Core.prototype.setTransferFunctionByColors = function(colors) {
     var transferTexture = this.setTransferFunctionByImage(image);
 
     this.onChangeTransferFunction.call(image);
-
 };
 
 Core.prototype.getTransferFunctionAsImage = function() {
@@ -305,7 +351,7 @@ Core.prototype.getTransferFunctionAsImage = function() {
 
 Core.prototype._initGeometry = function(geometryDimensions, volumeSizes) {
     var geometryHelper = new VRC.GeometryHelper();
-    this._geometry = geometryHelper.createBoxGeometry(geometryDimensions, volumeSizes);
+    this._geometry = geometryHelper.createBoxGeometry(geometryDimensions, volumeSizes, this.zFactor);
 
     this._geometry.applyMatrix( new THREE.Matrix4().makeTranslation( -volumeSizes[0] / 2, -volumeSizes[1] / 2, -volumeSizes[2] / 2 ) );
     this._geometry.applyMatrix( new THREE.Matrix4().makeRotationX( this._geometry_settings["rotation"]["x"] ));
@@ -315,9 +361,52 @@ Core.prototype._initGeometry = function(geometryDimensions, volumeSizes) {
 
 };
 
+Core.prototype.setMode = function(conf){
+  
+  this._shader_name =  conf.shader_name;
+  
+  this._materialSecondPass = new THREE.ShaderMaterial( {
+        vertexShader: this._shaders[this._shader_name].vertexShader,
+        fragmentShader: ejs.render( this._shaders[this._shader_name].fragmentShader, {
+          "maxTexturesNumber": this.getMaxTexturesNumber()}),
+        attributes: {
+            vertColor:                       {type: 'c', value: [] }
+        },
+        uniforms: {
+            uBackCoord:                      { type: "t",  value: this._rtTexture }, 
+            uSliceMaps:                      { type: "tv", value: this._slicemaps_textures }, 
+          
+            uNumberOfSlices:                 { type: "f", value: this.getSlicesRange()[1] },
+            uSlicesOverX:                    { type: "f", value: this._slicemap_row_col[0] },
+            uSlicesOverY:                    { type: "f", value: this._slicemap_row_col[1] },
+            uOpacityVal:                     { type: "f", value: this._opacity_factor },
+            darkness:                        { type: "f", value: this._color_factor },
+          
+            l:                               { type: "f", value: this.l },
+            s:                               { type: "f", value: this.s },
+            hMin:                            { type: "f", value: this.hMin },
+            hMax:                            { type: "f", value: this.hMax },
+          
+            minSos:                          { type: "f", value: this.minSos },
+            maxSos:                          { type: "f", value: this.maxSos },
+            minAtten:                        { type: "f", value: this.minAtten },
+            maxAtten:                        { type: "f", value: this.maxAtten },
+            minRefl:                         { type: "f", value: this.minRefl },
+            maxRefl:                         { type: "f", value: this.maxRefl }    
+        },
+        side: THREE.BackSide,
+        transparent: true
+    });
+  
+  this._meshSecondPass = new THREE.Mesh( this._geometry, this._materialSecondPass );
+  
+  this._sceneSecondPass = new THREE.Scene();
+  this._sceneSecondPass.add( this._meshSecondPass );
+}
+
 Core.prototype._setGeometry = function(geometryDimensions, volumeSizes) {
     var geometryHelper = new VRC.GeometryHelper();
-    var geometry      = geometryHelper.createBoxGeometry(geometryDimensions, volumeSizes);
+    var geometry      = geometryHelper.createBoxGeometry(geometryDimensions, volumeSizes, this.zFactor);
     var colorArray    = geometry.attributes.vertColor.array;
     var positionArray = geometry.attributes.position.array;
 
@@ -364,7 +453,7 @@ Core.prototype.setOpacityFactor = function(opacity_factor) {
 Core.prototype.setColorFactor = function(color_factor) {
     console.log("Core: setColorFactor()");
     this._color_factor = color_factor;
-    this._secondPassSetUniformValue("uColorVal", this._color_factor);
+    this._secondPassSetUniformValue("darkness", this._color_factor);
 };
 
 Core.prototype.setAbsorptionMode = function(mode_index) {
@@ -476,9 +565,9 @@ Core.prototype.draw = function(fps) {
     this.onPreDraw.call(fps.toFixed(3));
 
     this._render.render( this._sceneFirstPass, this._camera, this._rtTexture, true );
-    // this._render.render( this._sceneFirstPass, this._camera );
+     this._render.render( this._sceneFirstPass, this._camera );
 
-    //Render the second pass and perform the volume rendering.
+   // Render the second pass and perform the volume rendering.
     this._render.render( this._sceneSecondPass, this._camera );
 
     this.onPostDraw.call(fps.toFixed(3));

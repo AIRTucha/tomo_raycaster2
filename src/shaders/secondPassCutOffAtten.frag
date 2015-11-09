@@ -65,6 +65,26 @@ vec3 getVolumeValue(vec3 volpos)
     return value;
 } 
 
+// x - R, y - G, z - B
+// x - H, y - S, z - V
+vec3 tumorHighlighter(vec3 hsv) 
+{     
+    float     hue, p, q, t, ff;
+    int        i;    
+    
+    float sat = (hsv.y>(hMin + 0.5) && hsv.y<hMax)? s : 0.0; 
+    hsv.z = (darkness-hsv.z)*l;
+  
+    hue = 0.0;
+    i = int((hue));
+    ff = hue - float(i); 
+    p = hsv.z * (1.0 - sat);
+    q = hsv.z * (1.0 - (sat * ff));
+    t = hsv.z * (1.0 - (sat * (1.0 - ff)));
+
+    
+     return vec3(hsv.z,t,p);
+}
 void main(void)
 {
  const int uStepsI = 144;
@@ -85,10 +105,10 @@ void main(void)
  vec4 colorValue = vec4(0, 0, 0, 0); 
     
  float opacityFactor = uOpacityVal; 
-  
+ 
  for(int i = 0; i < uStepsI; i++) 
  {       
-    vec3 gray_val = getVolumeValue(vpos.xyz); 
+     vec3 gray_val = getVolumeValue(vpos.xyz); 
 
      if(gray_val.z < 0.05 || 
          gray_val.x < minSos ||
@@ -98,18 +118,20 @@ void main(void)
          gray_val.z < minRefl ||
          gray_val.z > maxRefl 
        )  
-         colorValue = vec4(0.0);   
-     else { 
-            colorValue.x = (darkness - gray_val.z) * l;
+         colorValue = vec4(0.0);     
+     else {             
+           colorValue.x = gray_val.x;
+            colorValue.y = gray_val.y;
+            colorValue.z = gray_val.z;
             colorValue.w = 0.1;
               
             sample.a = colorValue.a * opacityFactor * (1.0 / uStepsF); 
-            sample.rgb = (1.0 - accum.a) * colorValue.xxx * sample.a; 
-             
+            sample.rgb = (1.0 - accum.a) * tumorHighlighter(colorValue.rgb) * sample.a; 
+            
             accum += sample; 
 
             if(accum.a>=1.0) 
-               break; 
+                break; 
      }    
    
      //advance the current position 

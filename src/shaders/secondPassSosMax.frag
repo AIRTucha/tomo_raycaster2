@@ -24,7 +24,9 @@ uniform float l;
 uniform float s; 
 uniform float hMin; 
 uniform float hMax;  
+ 
 
+// uniform int uAvailable_textures_number;
 
 //Acts like a texture3D using Z slices and trilinear filtering. 
 vec3 getVolumeValue(vec3 volpos)
@@ -84,11 +86,14 @@ void main(void)
  vec4 sample = vec4(0.0, 0.0, 0.0, 0.0); 
  vec4 colorValue = vec4(0, 0, 0, 0); 
     
+ float biggest_gray_value = 0.0; 
+
+
  float opacityFactor = uOpacityVal; 
   
  for(int i = 0; i < uStepsI; i++) 
  {       
-    vec3 gray_val = getVolumeValue(vpos.xyz); 
+     vec3 gray_val = getVolumeValue(vpos.xyz); 
 
      if(gray_val.z < 0.05 || 
          gray_val.x < minSos ||
@@ -99,17 +104,18 @@ void main(void)
          gray_val.z > maxRefl 
        )  
          colorValue = vec4(0.0);   
+   
      else { 
-            colorValue.x = (darkness - gray_val.z) * l;
-            colorValue.w = 0.1;
-              
-            sample.a = colorValue.a * opacityFactor * (1.0 / uStepsF); 
-            sample.rgb = (1.0 - accum.a) * colorValue.xxx * sample.a; 
-             
-            accum += sample; 
+            if(biggest_gray_value < gray_val.x)  
+              biggest_gray_value = gray_val.x;    
 
-            if(accum.a>=1.0) 
-               break; 
+             colorValue.g = (darkness * 2.5 - biggest_gray_value) * l * 0.15;
+             sample.a = 0.1 * opacityFactor; 
+             sample.b = colorValue.g * s * 2.0; 
+             sample.g = colorValue.g; 
+             sample.r = colorValue.g; 
+
+             accum = sample; 
      }    
    
      //advance the current position 

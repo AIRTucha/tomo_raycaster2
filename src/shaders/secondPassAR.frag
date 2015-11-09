@@ -23,8 +23,7 @@ uniform float maxAtten;
 uniform float l; 
 uniform float s; 
 uniform float hMin; 
-uniform float hMax;  
-
+uniform float hMax; 
 
 //Acts like a texture3D using Z slices and trilinear filtering. 
 vec3 getVolumeValue(vec3 volpos)
@@ -65,6 +64,44 @@ vec3 getVolumeValue(vec3 volpos)
     return value;
 } 
 
+// x - R, y - G, z - B
+// x - H, y - S, z - V
+vec3 hsv2rgb(vec3 hsv) 
+{
+    float     hue, p, q, t, ff;
+    int        i;    
+    
+    hsv.z = (darkness-hsv.z)*l;
+    hsv.y = ( 1.2 - hsv.y - hMin)/(hMax - hMin) * 360.0;    
+  
+    hue = hsv.y >= 360.0 ? hsv.y-360.0 : hsv.y;
+    
+    hue /= 60.0;
+    i = int(hue);
+    ff = hue - float(i); 
+    p = hsv.z * (1.0 - s);
+    q = hsv.z * (1.0 - (s * ff));
+    t = hsv.z * (1.0 - (s * (1.0 - ff)));
+
+    if(i==0)
+        return vec3(hsv.z,t,p);
+    
+    else if(i==1)
+      return vec3(q,hsv.z,p);
+        
+    else if(i==2)     
+        return vec3(p,hsv.z,t);
+        
+    else if(i==3)
+        return vec3(p,q,hsv.z);
+        
+    else if(i==4)
+        return vec3(t,p,hsv.z);
+        
+    else
+        return vec3(hsv.z,p,q);
+}
+
 void main(void)
 {
  const int uStepsI = 144;
@@ -88,7 +125,7 @@ void main(void)
   
  for(int i = 0; i < uStepsI; i++) 
  {       
-    vec3 gray_val = getVolumeValue(vpos.xyz); 
+     vec3 gray_val = getVolumeValue(vpos.xyz); 
 
      if(gray_val.z < 0.05 || 
          gray_val.x < minSos ||
@@ -98,13 +135,15 @@ void main(void)
          gray_val.z < minRefl ||
          gray_val.z > maxRefl 
        )  
-         colorValue = vec4(0.0);   
+         colorValue = vec4(0.0);    
      else { 
-            colorValue.x = (darkness - gray_val.z) * l;
+            colorValue.x = gray_val.x;
+            colorValue.y = 1.0 - sqrt(gray_val.y);
+            colorValue.z = gray_val.z;
             colorValue.w = 0.1;
               
             sample.a = colorValue.a * opacityFactor * (1.0 / uStepsF); 
-            sample.rgb = (1.0 - accum.a) * colorValue.xxx * sample.a; 
+            sample.rgb = (1.0 - accum.a) * hsv2rgb(colorValue.rgb) * sample.a; 
              
             accum += sample; 
 

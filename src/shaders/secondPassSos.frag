@@ -23,7 +23,7 @@ uniform float maxAtten;
 uniform float l; 
 uniform float s; 
 uniform float hMin; 
-uniform float hMax;  
+uniform float hMax; 
 
 
 //Acts like a texture3D using Z slices and trilinear filtering. 
@@ -88,7 +88,7 @@ void main(void)
   
  for(int i = 0; i < uStepsI; i++) 
  {       
-    vec3 gray_val = getVolumeValue(vpos.xyz); 
+     vec3 gray_val = getVolumeValue(vpos.xyz); 
 
      if(gray_val.z < 0.05 || 
          gray_val.x < minSos ||
@@ -98,9 +98,9 @@ void main(void)
          gray_val.z < minRefl ||
          gray_val.z > maxRefl 
        )  
-         colorValue = vec4(0.0);   
+         colorValue = vec4(0.0);     
      else { 
-            colorValue.x = (darkness - gray_val.z) * l;
+            colorValue.x = (darkness * 2.0 - gray_val.x) * l * 0.4;
             colorValue.w = 0.1;
               
             sample.a = colorValue.a * opacityFactor * (1.0 / uStepsF); 

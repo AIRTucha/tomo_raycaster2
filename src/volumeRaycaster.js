@@ -180,6 +180,11 @@
 
         };
 
+        me.setMode = function(conf){
+          me._core.setMode(conf);
+          me._needRedraw = true;
+        };
+      
         me.setOpacityFactor = function(opacity_factor) {
             me._core.setOpacityFactor(opacity_factor);
             me._needRedraw = true;
@@ -334,20 +339,54 @@
 
         };
 
-        me.setRefl = function(value) {
-            me._core.setRefl(value);
+        me.setL = function(value) {
+            me._core.setL(value);
+            me._needRedraw = true;
+        };
+      
+        me.setS = function(value) {
+            me._core.setS(value);
+            me._needRedraw = true;
+        };
+      
+        me.setHMin = function(value) {
+            me._core.setHMin(value);
+            me._needRedraw = true;
+        };
+      
+        me.setHMax = function(value) {
+            me._core.setHMax(value);
+            me._needRedraw = true;
+        };
+      
+        me.setMinRefl = function(value) {
+            me._core.setMinRefl(value);
             me._needRedraw = true;
 
         };
-        me.setSos = function(value) {
-            me._core.setSos(value);
+        me.setMinSos = function(value) {
+            me._core.setMinSos(value);
             me._needRedraw = true;
         };
-        me.setSat = function(value) {
-            me._core.setSat(value);
+        me.setMinAtten = function(value) {
+            me._core.setMinAtten(value);
             me._needRedraw = true;
         };
-        
+      
+       me.setMaxRefl = function(value) {
+            me._core.setMaxRefl(value);
+            me._needRedraw = true;
+
+        };
+        me.setMaxSos = function(value) {
+            me._core.setMaxSos(value);
+            me._needRedraw = true;
+        };
+        me.setMaxAtten = function(value) {
+            me._core.setMaxAtten(value);
+            me._needRedraw = true;
+        };
+      
         me.setRowCol = function(row, col) {
             me._core.setRowCol(row, col);
             me._needRedraw = true;
@@ -482,19 +521,7 @@
             }
             me._needRedraw = true;
 
-        };
-
-        me.getRefl = function() {
-            return me._core.getRefl();
-        };
-        
-        me.getSos = function() {
-            return me._core.getSos();
-        };
-        
-        me.getSat = function() {
-            return me._core.getSat();
-        };
+        };       
         
         me.getGrayMaxValue = function() {
             return me._core.getGrayMaxValue();
@@ -734,20 +761,6 @@
             if(config['render_canvas_size'] != undefined) {
                 me.setRenderCanvasSize( config['render_canvas_size'][0], config['render_canvas_size'][1] );
             }
-            
-            if(config['refl'] != undefined) {
-                me.setRefl(config['refl']);
-            }
-                        
-            if(config['sat'] != undefined) {
-                me.setSat(config['sat']);
-            }
-            
-             if(config['sos'] != undefined) {
-                me.setSos(config['sos']);
-            }
-            
-
             me._needRedraw = true;
         };
 
@@ -807,9 +820,6 @@
                 "z_max": me.getGeometryDimensions()["zmax"],
                 "dom_container_id": me.getDomContainerId(),
                 "auto_steps": me.isAutoStepsOn(),
-                "refl": me.getRefl(),
-                "sat": me.getSat(),
-                "sos": me.getSos()
             };
 
             return config;
